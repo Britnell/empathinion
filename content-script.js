@@ -1,35 +1,3 @@
-console.log('Empathy detector loaded!');
-
-const systemPrompt =
-  'You are a wise teacher who understands compassionate communication. Analyze text for empathy, kindness, and emotional awareness as a mindful observer would.';
-
-const prompt = (text) => `
-Analyze the following text for emotional tone and empathy level. Start with a brief overall summary and analysis, then output scores in JSON format.
-
-**Scoring Guidelines:**
-- **Empathy (1-10):** 1 = No consideration for others' feelings, 10 = Highly empathetic and understanding
-- **Politeness (1-10):** 1 = Very rude/harsh, 10 = Extremely courteous and respectful  
-- **Anger (1-10):** 1 = No anger detected, 10 = Extremely angry/hostile
-- **Condescension (1-10):** 1 = No condescending tone, 10 = Highly condescending/patronizing
-- **Emotional Regulation (1-10):** 1 = Poor emotional control, 10 = Excellent emotional control
-
-**JSON Format example:**
-{
-    "empathy": 5,
-    "politeness": 6,
-    "anger": 2,
-    "condescension": 1,
-    "emotional_regulation": 8,
-}
-
-**Text to analyze:**
-\`\`\`
-${text}
-\`\`\`
-
-Focus on how the text might be received by others, not just the sender's intent.
-`;
-
 class EmpathyDetector {
   constructor() {
     this.popup = null;
@@ -43,7 +11,7 @@ class EmpathyDetector {
 
     const params = await LanguageModel.params();
     const availability = await LanguageModel.availability();
-    console.log('// READY ', { params, availability });
+    // console.log('// READY ', { params, availability });
   }
 
   handleInput(event) {
@@ -62,8 +30,6 @@ class EmpathyDetector {
   }
 
   async call(text, el) {
-    console.log('// ' + text);
-
     // Show loading state
     if (this.popup) {
       const loadingIndicator = this.popup.querySelector('.loading-indicator');
@@ -211,11 +177,89 @@ async function queryLLM(text) {
     initialPrompts: [
       {
         role: 'system',
-        content: systemPrompt,
+        content: system2,
       },
     ],
   });
 
-  const res = await session.prompt(prompt(text));
+  const res = await session.prompt(prompt1(text));
   return res;
 }
+
+const system1 =
+  'You are a wise teacher who understands compassionate communication. Analyze text for empathy, kindness, and emotional awareness as a mindful observer would.';
+
+const prompt1 = (text) => `
+  Analyze the following text for emotional tone and empathy level. Start with a brief overall summary and analysis, then output scores in JSON format.
+  
+  **Scoring Guidelines:**
+  - **Empathy (1-10):** 1 = No consideration for others' feelings, 10 = Highly empathetic and understanding
+  - **Politeness (1-10):** 1 = Very rude/harsh, 10 = Extremely courteous and respectful  
+  - **Anger (1-10):** 1 = No anger detected, 10 = Extremely angry/hostile
+  - **Condescension (1-10):** 1 = No condescending tone, 10 = Highly condescending/patronizing
+  - **Emotional Regulation (1-10):** 1 = Poor emotional control, 10 = Excellent emotional control
+  
+  **JSON Format example:**
+  {
+      "empathy": 5,
+      "politeness": 6,
+      "anger": 2,
+      "condescension": 1,
+      "emotional_regulation": 8,
+  }
+  
+  **Text to analyze:**
+  \`\`\`
+  ${text}
+  \`\`\`
+  
+  Focus on how the text might be received by others, not just the sender's intent.
+  `;
+
+const system2 =
+  'You are a mindful communication guide. Give brief, gentle feedback on text to help the writer be more mindful and compassionate in their communication.';
+
+const prompt2 = (text) => `
+Analyze this text and respond with short feedback, which itself is kind & compassionate. Don't criticise but give gentle reminders.
+
+Respond with: 
+1. A color status: GREEN (compassionate), YELLOW (could improve), or RED (needs attention)
+2. One brief suggestion, if needed
+
+Response format: COLOR "brief feedback"
+
+Keep responses to one sentence. For neutral text which is factual and not personal, has no tone or emotion in it, respond with \`GREEN ""\`. 
+
+Examples:
+\`\`\`
+GREEN "" /* for neutral facts */
+GREEN "Clear and considerate"
+GREEN "Kind"
+GREEN "Gentle and understanding"
+GREEN "This feels caring"
+
+YELLOW "How might you say this to a friend?"
+YELLOW "Can we phrase this even more gently?"
+YELLOW "How might this land for them?"
+
+RED "I sense some frustration
+RED "That's a strong reaction"
+RED "How might this feel to receive?"
+RED "Are you being defensive?"
+\`\`\`
+
+**Text to analyze:**
+\`\`\`
+${text}
+\`\`\`
+
+`;
+
+/*
+
+'You are a Buddhist master & teacher. You have spent years studying buddhist texts and meditated to understand them, and free your mind of ego and attachment.';
+
+RED "Could you phrase this differently?"
+YELLOW "What if we were more curious than certain?"
+
+*/
