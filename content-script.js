@@ -114,18 +114,16 @@ class EmpathyDetector {
     const rect = this.currentInput.getBoundingClientRect();
     const viewportWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
-    let left = rect.left + window.scrollX;
-    let top = rect.bottom + window.scrollY + 5;
+    const right = viewportWidth - rect.right - window.scrollX;
+    const top = rect.bottom + window.scrollY + 5;
 
     const popupWidth = 300;
-    if (left + popupWidth > viewportWidth) {
-      left = Math.max(10, viewportWidth - popupWidth - 10);
-    }
+    const minRight = Math.max(right, 10); // Ensure popup doesn't go off the right edge
 
     this.popup.style.cssText = `
       position: absolute;
       top: ${top}px;
-      left: ${left}px;
+      right: ${minRight}px;
       z-index: 10000;
     `;
   }
@@ -175,29 +173,28 @@ async function queryLLM(text) {
 }
 
 const system2 =
-  'You are a mindful communication guide. Give brief, gentle feedback to help the writer be more mindful and compassionate in their communication.';
+  'You are a mindful communication guide & teacher. You help people be more mindful and compassionate in their communication.';
 
 const prompt2 = (text) => `
-Analyze this text and give short gentle feedback, don't criticise but be kind & compassionate. 
+Analyze this text and rate the tone in terms of empathy, kindness, and politeness. Don't give feedback, just rate the tone and suggest when more empathy is needed. 
+Keep responses to one sentence.
 
-Respond with: COLOR "brief feedback"
-colors mean : GREEN (compassionate), YELLOW (could improve), RED (needs attention)
-
-Reply with just once sentence.
-For text which is factual, not personal, and has no tone or emotion in it, give an empty response : \`GREEN ""\`. 
+Respond with: \`COLOR "single sentence reply."\`
+use colors : GREEN (good), YELLOW (could be better), RED (negative)
+For an factual, non-personal text with no emotional tone, give an empty reply \`GREEN ""\`
 
 Examples:
 GREEN "Kind"
-GREEN "Gentle and understanding"
+GREEN "Gentle & understanding"
 GREEN "This feels caring"
 GREEN ""
 
 YELLOW "How might you say this to a friend?"
 YELLOW "Can we phrase this even more gently?"
-YELLOW "How might this land for them?"
+YELLOW "What would you say to them in person?"
 
 RED "Do I sense some frustration?"
-RED "That's a strong reaction"
+RED "That might be a strong reaction"
 RED "How might this feel to receive?"
 
 **Text to analyze:**
@@ -205,12 +202,3 @@ RED "How might this feel to receive?"
 ${text}
 \`\`\`
 `;
-
-/*
-
-'You are a Buddhist master & teacher. You have spent years studying buddhist texts and meditated to understand them, and free your mind of ego and attachment.';
-
-RED "Could you phrase this differently?"
-YELLOW "What if we were more curious than certain?"
-
-*/
