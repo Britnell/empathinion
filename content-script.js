@@ -39,9 +39,7 @@ class EmpathyDetector {
   }
 
   async init() {
-    // Listen for input events on the entire page
     document.addEventListener('input', this.handleInput.bind(this));
-    // document.addEventListener('focusin', this.handleFocus.bind(this));
 
     const params = await LanguageModel.params();
     const availability = await LanguageModel.availability();
@@ -65,6 +63,12 @@ class EmpathyDetector {
 
   async call(text, el) {
     console.log('// ' + text);
+
+    // Show loading state
+    if (this.popup) {
+      const loadingIndicator = this.popup.querySelector('.loading-indicator');
+      if (loadingIndicator) loadingIndicator.style.visibility = 'visible';
+    }
 
     // if (!text.trim()) {
     //   this.removePopup();
@@ -97,8 +101,15 @@ class EmpathyDetector {
       this.popup = document.createElement('div');
       this.popup.className = 'empathy-popup';
       this.popup.innerHTML = `
-            <button class="empathy-close">&times;</button>
-            <div class="empathy-content"></div>`;
+        
+        <div>
+            <div class="empathy-header">
+                <span>Empathy Analysis</span>  
+                <div class="loading-indicator"></div>
+                <button class="empathy-close">&times;</button>
+            </div>
+            <div class="empathy-content"></div>
+        </div>`;
 
       const closeButton = this.popup.querySelector('.empathy-close');
       closeButton.addEventListener('click', () => this.removePopup());
@@ -108,8 +119,9 @@ class EmpathyDetector {
 
     // update content
     const content = this.popup.querySelector('.empathy-content');
-    content.innerHTML = `
-        <div class="empathy-header">Empathy Analysis</div>
+
+    if (analysis)
+      content.innerHTML = `
         <ul class="empathy-scores">
           <li>Empathy: ${analysis.empathy}</li>
           <li>Politeness: ${analysis.politeness}</li>
@@ -118,6 +130,11 @@ class EmpathyDetector {
           <li>Emotional Regulation: ${analysis.emotional_regulation}</li>
         </ul>
       `;
+
+    if (this.popup) {
+      const loadingIndicator = this.popup.querySelector('.loading-indicator');
+      if (loadingIndicator) loadingIndicator.style.visibility = 'hidden';
+    }
 
     // this.autoRemoveTimer = setTimeout(() => this.removePopup(), 10000);
   }
