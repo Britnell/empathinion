@@ -2,7 +2,7 @@ class EmpathyDetector {
   constructor() {
     this.popup = null;
     this.currentInput = null;
-    this.bouncer = null;
+    this.currentController = null;
 
     this.init();
   }
@@ -21,42 +21,40 @@ class EmpathyDetector {
       return;
     }
 
-    if (this.bouncer) {
-      clearTimeout(this.bouncer);
+    if (this.currentController) {
+      this.currentController.abort();
     }
 
     const text = getTextContent(el);
-    this.bouncer = setTimeout(() => this.call(text, el), 1000);
+    this.call(text, el);
   }
 
   async call(text, el) {
-    // Show loading state
+    this.currentController = new AbortController();
+    const signal = this.currentController.signal;
+
     if (this.popup) {
       const loadingIndicator = this.popup.querySelector('.loading-indicator');
       if (loadingIndicator) loadingIndicator.style.visibility = 'visible';
     }
 
-    // if (!text.trim()) {
-    //   this.removePopup();
-    //   return;
-    // }
-
     try {
-      const resp = await queryLLM(text);
-      this.showPopup(el, resp);
+      const resp = await queryLLM(text, signal);
+
+      if (!signal.aborted) {
+        this.showPopup(el, resp);
+      }
     } catch (error) {
       console.error('Error:', error);
     }
   }
 
   showPopup(inputElement, resp) {
-    //  reposition
     if (this.currentInput !== inputElement && this.popup) {
       this.positionPopup();
     }
     this.currentInput = inputElement;
 
-    //  Create
     if (!this.popup) {
       this.popup = document.createElement('div');
       this.popup.className = 'empathy-popup';
@@ -77,20 +75,20 @@ class EmpathyDetector {
       this.positionPopup();
     }
 
-    // update content
     const content = this.popup.querySelector('.empathy-content');
 
     const color = resp.split(' ')[0];
     const fb = resp.split('"')[1];
     const sentence = fb.split(/[\.\?!]\s+/)[0];
-    console.log({ resp, color, fb, sentence });
 
-    content.innerHTML = `
+    if (color && sentence)
+      content.innerHTML = `
         <p class="empathy-reply">
             <span class="empathy-indicator ${color.toLowerCase()}"></span>
             ${sentence}
         </p>
       `;
+    else content.innerHTML = 'X';
 
     if (this.popup) {
       const loadingIndicator = this.popup.querySelector('.loading-indicator');
@@ -118,7 +116,7 @@ class EmpathyDetector {
     const top = rect.bottom + window.scrollY + 5;
 
     const popupWidth = 300;
-    const minRight = Math.max(right, 10); // Ensure popup doesn't go off the right edge
+    const minRight = Math.max(right, 10);
 
     this.popup.style.cssText = `
       position: absolute;
@@ -159,7 +157,7 @@ function getTextContent(el) {
   return el.value || el.textContent || el.innerText;
 }
 
-async function queryLLM(text) {
+async function queryLLM(text, signal) {
   const session = await LanguageModel.create({
     initialPrompts: [
       {
@@ -167,9 +165,10 @@ async function queryLLM(text) {
         content: system2,
       },
     ],
+    signal: signal,
   });
 
-  return await session.prompt(prompt2(text));
+  return session.prompt(prompt2(text));
 }
 
 const system2 =
