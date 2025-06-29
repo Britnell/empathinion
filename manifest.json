@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Empathy Detector",
+  "version": "1.0",
+  "description": "Detects empathy in text inputs",
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-styles.css"]
+    }
+  ],
+
+  "permissions": ["activeTab"],
+
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
