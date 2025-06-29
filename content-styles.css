@@ -77,6 +77,26 @@
   gap: 6px;
 }
 
+/* .empathy-reply {} */
+
+.empathy-indicator {
+  position: float;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  display: inline-block;
+
+  &.green {
+    background-color: #10b981;
+  }
+  &.yellow {
+    background-color: #f59e0b;
+  }
+  &.red {
+    background-color: #ef4444;
+  }
+}
+
 .empathy-popup {
   animation: popupAppear 0.2s ease-out forwards;
 }

@@ -3,15 +3,15 @@ class EmpathyDetector {
     this.popup = null;
     this.currentInput = null;
     this.bouncer = null;
+
     this.init();
   }
 
   async init() {
-    document.addEventListener('input', this.handleInput.bind(this));
-
-    const params = await LanguageModel.params();
     const availability = await LanguageModel.availability();
-    // console.log('// READY ', { params, availability });
+    if (availability) {
+      document.addEventListener('input', this.handleInput.bind(this));
+    }
   }
 
   handleInput(event) {
@@ -42,20 +42,14 @@ class EmpathyDetector {
     // }
 
     try {
-      const res = await queryLLM(text);
-      const analysis = extractJSON(res);
-      console.log(analysis);
-
-      if (!analysis) {
-        return;
-      }
-      this.showPopup(el, analysis);
+      const resp = await queryLLM(text);
+      this.showPopup(el, resp);
     } catch (error) {
       console.error('Error:', error);
     }
   }
 
-  showPopup(inputElement, analysis = null) {
+  showPopup(inputElement, resp) {
     //  reposition
     if (this.currentInput !== inputElement && this.popup) {
       this.positionPopup();
@@ -86,23 +80,22 @@ class EmpathyDetector {
     // update content
     const content = this.popup.querySelector('.empathy-content');
 
-    if (analysis)
-      content.innerHTML = `
-        <ul class="empathy-scores">
-          <li>Empathy: ${analysis.empathy}</li>
-          <li>Politeness: ${analysis.politeness}</li>
-          <li>Anger: ${analysis.anger}</li>
-          <li>Condescension: ${analysis.condescension}</li>
-          <li>Emotional Regulation: ${analysis.emotional_regulation}</li>
-        </ul>
+    const color = resp.split(' ')[0];
+    const fb = resp.split('"')[1];
+    const sentence = fb.split(/[\.\?!]\s+/)[0];
+    console.log({ resp, color, fb, sentence });
+
+    content.innerHTML = `
+        <p class="empathy-reply">
+            <span class="empathy-indicator ${color.toLowerCase()}"></span>
+            ${sentence}
+        </p>
       `;
 
     if (this.popup) {
       const loadingIndicator = this.popup.querySelector('.loading-indicator');
       if (loadingIndicator) loadingIndicator.style.visibility = 'hidden';
     }
-
-    // this.autoRemoveTimer = setTimeout(() => this.removePopup(), 10000);
   }
 
   removePopup() {
@@ -113,10 +106,6 @@ class EmpathyDetector {
     this.popup.parentNode.removeChild(this.popup);
     this.popup = null;
     this.currentInput = null;
-    // if (this.autoRemoveTimer) {
-    //   clearTimeout(this.autoRemoveTimer);
-    //   this.autoRemoveTimer = null;
-    // }
   }
 
   positionPopup() {
@@ -150,14 +139,14 @@ if (document.readyState === 'loading') {
   new EmpathyDetector();
 }
 
-function extractJSON(response) {
-  const firstBrace = response.indexOf('{');
-  const lastBrace = response.lastIndexOf('}');
+function extractJSON(resp) {
+  const firstBrace = resp.indexOf('{');
+  const lastBrace = resp.lastIndexOf('}');
 
   if (firstBrace === -1 || lastBrace === -1) return null;
 
   try {
-    return JSON.parse(response.slice(firstBrace, lastBrace + 1));
+    return JSON.parse(resp.slice(firstBrace, lastBrace + 1));
   } catch (e) {
     return null;
   }
@@ -182,77 +171,39 @@ async function queryLLM(text) {
     ],
   });
 
-  const res = await session.prompt(prompt1(text));
-  return res;
+  return await session.prompt(prompt2(text));
 }
 
-const system1 =
-  'You are a wise teacher who understands compassionate communication. Analyze text for empathy, kindness, and emotional awareness as a mindful observer would.';
-
-const prompt1 = (text) => `
-  Analyze the following text for emotional tone and empathy level. Start with a brief overall summary and analysis, then output scores in JSON format.
-  
-  **Scoring Guidelines:**
-  - **Empathy (1-10):** 1 = No consideration for others' feelings, 10 = Highly empathetic and understanding
-  - **Politeness (1-10):** 1 = Very rude/harsh, 10 = Extremely courteous and respectful  
-  - **Anger (1-10):** 1 = No anger detected, 10 = Extremely angry/hostile
-  - **Condescension (1-10):** 1 = No condescending tone, 10 = Highly condescending/patronizing
-  - **Emotional Regulation (1-10):** 1 = Poor emotional control, 10 = Excellent emotional control
-  
-  **JSON Format example:**
-  {
-      "empathy": 5,
-      "politeness": 6,
-      "anger": 2,
-      "condescension": 1,
-      "emotional_regulation": 8,
-  }
-  
-  **Text to analyze:**
-  \`\`\`
-  ${text}
-  \`\`\`
-  
-  Focus on how the text might be received by others, not just the sender's intent.
-  `;
-
 const system2 =
-  'You are a mindful communication guide. Give brief, gentle feedback on text to help the writer be more mindful and compassionate in their communication.';
+  'You are a mindful communication guide. Give brief, gentle feedback to help the writer be more mindful and compassionate in their communication.';
 
 const prompt2 = (text) => `
-Analyze this text and respond with short feedback, which itself is kind & compassionate. Don't criticise but give gentle reminders.
+Analyze this text and give short gentle feedback, don't criticise but be kind & compassionate. 
 
-Respond with: 
-1. A color status: GREEN (compassionate), YELLOW (could improve), or RED (needs attention)
-2. One brief suggestion, if needed
+Respond with: COLOR "brief feedback"
+colors mean : GREEN (compassionate), YELLOW (could improve), RED (needs attention)
 
-Response format: COLOR "brief feedback"
-
-Keep responses to one sentence. For neutral text which is factual and not personal, has no tone or emotion in it, respond with \`GREEN ""\`. 
+Reply with just once sentence.
+For text which is factual, not personal, and has no tone or emotion in it, give an empty response : \`GREEN ""\`. 
 
 Examples:
-\`\`\`
-GREEN "" /* for neutral facts */
-GREEN "Clear and considerate"
 GREEN "Kind"
 GREEN "Gentle and understanding"
 GREEN "This feels caring"
+GREEN ""
 
 YELLOW "How might you say this to a friend?"
 YELLOW "Can we phrase this even more gently?"
 YELLOW "How might this land for them?"
 
-RED "I sense some frustration
+RED "Do I sense some frustration?"
 RED "That's a strong reaction"
 RED "How might this feel to receive?"
-RED "Are you being defensive?"
-\`\`\`
 
 **Text to analyze:**
 \`\`\`
 ${text}
 \`\`\`
-
 `;
 
 /*
