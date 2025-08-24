@@ -9,91 +9,94 @@ class EmpathyDetector {
 
   async init() {
     const availability = await LanguageModel.availability();
-    if (availability) {
+    console.log({ availability });
+
+    if (availability === 'available') {
+      this.createPopup();
       document.addEventListener('input', this.handleInput.bind(this));
-    }
-  }
-
-  handleInput(event) {
-    const el = event.target;
-
-    if (!isTextInput(el)) {
       return;
     }
 
-    if (this.currentController) {
-      this.currentController.abort();
+    if (availability === 'downloadable') {
+      //
     }
+    if (availability === 'downloading') {
+      //
+    }
+  }
+
+  async handleInput(event) {
+    // cancel previous call
+    if (this.currentController) {
+      this.currentController.abort('keystroke');
+    }
+
+    const el = event.target;
+
+    if (!isTextInput(el)) return;
 
     const text = getTextContent(el);
-    this.call(text, el);
+
+    const resp = await this.query(text);
+    if (!resp) return;
+
+    this.renderResp(el, resp);
   }
 
-  async call(text, el) {
-    this.currentController = new AbortController();
-    const signal = this.currentController.signal;
-
-    if (this.popup) {
-      const loadingIndicator = this.popup.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.visibility = 'visible';
-    }
+  async query(text) {
+    const abort = new AbortController();
+    this.currentController = abort;
 
     try {
-      const resp = await queryLLM(text, signal);
-
-      if (!signal.aborted) {
-        this.showPopup(el, resp);
-      }
-    } catch (error) {
-      console.error('Error:', error);
+      const resp = await promptLLM(text, abort.signal);
+      // if (!abort.signal.aborted)
+      return resp;
+    } catch {
+      // aborted
     }
   }
 
-  showPopup(inputElement, resp) {
-    if (this.currentInput !== inputElement && this.popup) {
-      this.positionPopup();
-    }
+  renderResp(inputElement, resp) {
     this.currentInput = inputElement;
 
-    if (!this.popup) {
-      this.popup = document.createElement('div');
-      this.popup.className = 'empathy-popup';
-      this.popup.innerHTML = `
-        
-        <div>
-            <div class="empathy-header">
-                <span>Empathy Analysis</span>  
-                <div class="loading-indicator"></div>
-                <button class="empathy-close">&times;</button>
-            </div>
-            <div class="empathy-content"></div>
-        </div>`;
-
-      const closeButton = this.popup.querySelector('.empathy-close');
-      closeButton.addEventListener('click', () => this.removePopup());
-      document.body.appendChild(this.popup);
-      this.positionPopup();
-    }
-
     const content = this.popup.querySelector('.empathy-content');
-
-    const color = resp.split(' ')[0];
-    const fb = resp.split('"')[1];
-    const sentence = fb.split(/[\.\?!]\s+/)[0];
-
-    if (color && sentence)
-      content.innerHTML = `
-        <p class="empathy-reply">
-            <span class="empathy-indicator ${color.toLowerCase()}"></span>
-            ${sentence}
-        </p>
-      `;
-    else content.innerHTML = 'X';
-
-    if (this.popup) {
-      const loadingIndicator = this.popup.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.visibility = 'hidden';
+    if (!content) {
+      return;
     }
+
+    const values = parseResp(resp);
+    console.log(values);
+
+    const notmsg = !values.input || !values.message;
+    if (notmsg) {
+      return;
+    }
+
+    const avrg = (values.tone + values.sentiment + values.empathy) / 3;
+    if (isNaN(avrg)) {
+      return;
+    }
+
+    this.positionPopup();
+    this.popup.firstElementChild.showPopover();
+
+    const col = avrg <= 3.5 ? 'red' : avrg < 6.3 ? 'yellow' : 'green';
+    content.style.background = colours[col];
+
+    content.innerHTML = `
+    <p class="empathy-reply"></p>
+    `;
+  }
+
+  createPopup() {
+    this.popup = document.createElement('div');
+    this.popup.innerHTML = `
+      <div id="empathii-popup" class="empathy-popup" popover="manual">
+        <button class="empathy-close" popovertarget="empathii-popup" popovertargetaction="hide">&times;</button>
+        <div class="empathy-content"></div>
+        <span>(e)</span>
+      </div>  `;
+    document.body.appendChild(this.popup);
   }
 
   removePopup() {
@@ -107,25 +110,13 @@ class EmpathyDetector {
   }
 
   positionPopup() {
-    if (!this.popup || !this.currentInput) return;
-
-    const rect = this.currentInput.getBoundingClientRect();
-    const viewportWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-
-    const right = viewportWidth - rect.right - window.scrollX;
-    const top = rect.bottom + window.scrollY + 5;
-
-    const popupWidth = 300;
-    const minRight = Math.max(right, 10);
-
-    this.popup.style.cssText = `
-      position: absolute;
-      top: ${top}px;
-      right: ${minRight}px;
-      z-index: 10000;
-    `;
+    this.currentInput.style['anchor-name'] = '--empathii-anchor';
   }
+
+  // *
 }
+
+//  ******
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -135,69 +126,95 @@ if (document.readyState === 'loading') {
   new EmpathyDetector();
 }
 
-function extractJSON(resp) {
-  const firstBrace = resp.indexOf('{');
-  const lastBrace = resp.lastIndexOf('}');
-
-  if (firstBrace === -1 || lastBrace === -1) return null;
-
-  try {
-    return JSON.parse(resp.slice(firstBrace, lastBrace + 1));
-  } catch (e) {
-    return null;
-  }
-}
-
 function isTextInput(el) {
   const tagName = el.tagName.toLowerCase();
-  return tagName === 'textarea' || (tagName === 'input' && el.type === 'text') || el.contentEditable === 'true';
+  // maybe for <input :  autocomplete="on"  autocorrect="on" spellcheck="false"
+  return tagName === 'textarea' || el.contentEditable === 'true';
 }
 
 function getTextContent(el) {
   return el.value || el.textContent || el.innerText;
 }
 
-async function queryLLM(text, signal) {
+//  ******
+
+async function promptLLM(text, signal) {
+  const systemPrompt =
+    'You are a mindful communication guide & teacher. You help people be more mindful and compassionate in their communication.';
+
   const session = await LanguageModel.create({
     initialPrompts: [
       {
         role: 'system',
-        content: system2,
+        content: systemPrompt,
       },
     ],
-    signal: signal,
+    signal,
   });
 
-  return session.prompt(prompt2(text));
+  return session.prompt(promptTemplate(text));
 }
 
-const system2 =
-  'You are a mindful communication guide & teacher. You help people be more mindful and compassionate in their communication.';
+const promptTemplate = (text) => `
+Analyze this text and rate the tone in terms of empathy, kindness, and politeness. 
 
-const prompt2 = (text) => `
-Analyze this text and rate the tone in terms of empathy, kindness, and politeness. Don't give feedback, just rate the tone and suggest when more empathy is needed. 
-Keep responses to one sentence.
+Answer these questions in the exact numbered format shown:
 
-Respond with: \`COLOR "single sentence reply."\`
-use colors : GREEN (good), YELLOW (could be better), RED (negative)
-For an factual, non-personal text with no emotional tone, give an empty reply \`GREEN ""\`
+1. is this a factual input of information into a html input or web form? (Y/N)
+2. is this a communication? e.g. message, comment, review or email (Y/N)
+3. give a score from 0 to 9 for tone, where 0 is rude, 9 is polite
+4. give a score from 0 to 9 for sentiment, where 0 is negative, 9 is positive
+5. give a score from 0-9 for empathy & kindness, where 9 is best
 
-Examples:
-GREEN "Kind"
-GREEN "Gentle & understanding"
-GREEN "This feels caring"
-GREEN ""
+Required format (answer with true / false or numbers only):
+1. N
+2. Y
+3. 6
+4. 7
+5. 5
 
-YELLOW "How might you say this to a friend?"
-YELLOW "Can we phrase this even more gently?"
-YELLOW "What would you say to them in person?"
-
-RED "Do I sense some frustration?"
-RED "That might be a strong reaction"
-RED "How might this feel to receive?"
+Only provide the 5 numbered lines exactly as shown in the example as your response will be processed automatically.
 
 **Text to analyze:**
 \`\`\`
 ${text}
 \`\`\`
 `;
+
+function parseResp(resp) {
+  const lines = resp.split('\n');
+  const values = {};
+  lines.forEach((line) => {
+    const chars = line.split('');
+    const isrow = chars[1] === '.' && chars[2] === ' ';
+    if (!isrow) return null;
+
+    values[chars[0]] = chars[3];
+  });
+  return {
+    input: values['1'] == 'N',
+    message: values['2'] == 'Y',
+    tone: parseInt(values['3']),
+    sentiment: parseInt(values['4']),
+    empathy: parseInt(values['5']),
+  };
+}
+
+/*
+  Examples:
+  GREEN "Kind"
+  YELLOW "How might you say this to a friend?"
+  GREEN "Gentle & understanding"
+  RED "Do I sense some frustration?"
+  YELLOW "Can we phrase this even more gently?"
+  RED "That might be a strong reaction"
+  YELLOW "What would you say to them in person?"
+  GREEN "This feels caring"
+  RED "How might this feel to receive?"
+*/
+
+const colours = {
+  green: '#43b022ff',
+  yellow: '#ffc562ff',
+  red: '#ef4444',
+};
