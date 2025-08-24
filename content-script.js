@@ -78,25 +78,27 @@ class EmpathyDetector {
     }
 
     this.positionPopup();
-    this.popup.firstElementChild.showPopover();
+    this.popover.showPopover();
 
     const col = avrg <= 3.5 ? 'red' : avrg < 6.3 ? 'yellow' : 'green';
     content.style.background = colours[col];
-
-    content.innerHTML = `
-    <p class="empathy-reply"></p>
-    `;
   }
 
   createPopup() {
     this.popup = document.createElement('div');
     this.popup.innerHTML = `
-      <div id="empathii-popup" class="empathy-popup" popover="manual">
-        <button class="empathy-close" popovertarget="empathii-popup" popovertargetaction="hide">&times;</button>
+      <div id="empathiipopup" class="empathy-popup" popover="auto">
+        <button class="empathy-close" popovertarget="empathiipopup" popovertargetaction="hide">&times;</button>
         <div class="empathy-content"></div>
         <span>(e)</span>
       </div>  `;
     document.body.appendChild(this.popup);
+
+    this.popover = this.popup.querySelector('.empathy-popup');
+
+    this.popup.querySelector('.empathy-close').addEventListener('click', () => {
+      this.popover.hidePopover();
+    });
   }
 
   removePopup() {
@@ -110,7 +112,10 @@ class EmpathyDetector {
   }
 
   positionPopup() {
-    this.currentInput.style['anchor-name'] = '--empathii-anchor';
+    // place this.popup rel to this.currentInput
+    // this.currentInput.style.anchorName = '--empathii-anchor';
+    // this.popover.style.left = 'anchor(--empathii-anchor right)';
+    // this.popover.style.top = 'anchor(--empathii-anchor top)';
   }
 
   // *
@@ -191,6 +196,7 @@ function parseResp(resp) {
 
     values[chars[0]] = chars[3];
   });
+
   return {
     input: values['1'] == 'N',
     message: values['2'] == 'Y',

@@ -4,15 +4,10 @@
   line-height: 1.5;
   color: #333;
 
-  width: 3rem;
-  height: 3rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
 
-  margin: 0 1rem;
-  inset: auto;
-
-  padding: 0.25rem;
-  background: white;
-  border-radius: 0.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 
   display: grid;
@@ -24,13 +19,17 @@
   }
 
   position-anchor: --empathii-anchor;
-  position-area: top right;
+  /* position-area: top right; */
+  margin: 0 1rem;
+  inset: auto;
+
   animation: popupAppear 0.4s ease-out forwards;
 }
 
 .empathy-content {
   width: 100%;
   height: 100%;
+  border: 1px solid white;
   /* width: 2rem; */
   /* height: 2rem; */
   border-radius: 50%;
