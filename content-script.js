@@ -9,7 +9,7 @@ class EmpathyDetector {
 
   async init() {
     const availability = await LanguageModel.availability();
-    console.log({ availability });
+    console.log('llm', { availability });
 
     if (availability === 'available') {
       this.createPopup();
@@ -32,42 +32,22 @@ class EmpathyDetector {
     }
 
     const el = event.target;
-
-    if (!isTextInput(el)) return;
+    const istext = isTextInput(el);
+    if (!istext) return;
 
     const text = getTextContent(el);
 
     const resp = await this.query(text);
+
     if (!resp) return;
-
     this.renderResp(el, resp);
-  }
-
-  async query(text) {
-    const abort = new AbortController();
-    this.currentController = abort;
-
-    try {
-      const resp = await promptLLM(text, abort.signal);
-      // if (!abort.signal.aborted)
-      return resp;
-    } catch {
-      // aborted
-    }
   }
 
   renderResp(inputElement, resp) {
     this.currentInput = inputElement;
 
-    const content = this.popup.querySelector('.empathy-content');
-    if (!content) {
-      return;
-    }
-
     const values = parseResp(resp);
-    console.log(values);
-
-    const notmsg = !values.input || !values.message;
+    const notmsg = !values.message;
     if (notmsg) {
       return;
     }
@@ -78,47 +58,59 @@ class EmpathyDetector {
     }
 
     this.positionPopup();
-    this.popover.showPopover();
 
     const col = avrg <= 3.5 ? 'red' : avrg < 6.3 ? 'yellow' : 'green';
-    content.style.background = colours[col];
+    this.popup.style.background = colours[col];
+
+    const content = this.popup.querySelector('span');
+    if (content) {
+      content.textContent = Math.floor(avrg);
+    }
   }
 
   createPopup() {
-    this.popup = document.createElement('div');
-    this.popup.innerHTML = `
-      <div id="empathiipopup" class="empathy-popup" popover="auto">
-        <button class="empathy-close" popovertarget="empathiipopup" popovertargetaction="hide">&times;</button>
-        <div class="empathy-content"></div>
-        <span>(e)</span>
-      </div>  `;
-    document.body.appendChild(this.popup);
+    // existing
+    const popup = document.createElement('div');
+    popup.id = 'empathii';
+    popup.innerHTML = `
+<button>&times;</button>
+<span>(e)</span>
+<p></p>`;
+    document.body.appendChild(popup);
 
-    this.popover = this.popup.querySelector('.empathy-popup');
-
-    this.popup.querySelector('.empathy-close').addEventListener('click', () => {
-      this.popover.hidePopover();
+    popup.querySelector('button').addEventListener('click', () => {
+      this.hidePopup();
     });
+
+    this.popup = popup;
   }
 
-  removePopup() {
-    if (!this.popup) {
-      return;
-    }
+  async query(text) {
+    const abort = new AbortController();
+    this.currentController = abort;
 
-    this.popup.parentNode.removeChild(this.popup);
-    this.popup = null;
-    this.currentInput = null;
+    try {
+      const resp = await promptLLM(text, abort.signal);
+      return resp;
+    } catch {
+      // aborted
+    }
+  }
+
+  hidePopup() {
+    if (this.popup) {
+      this.popup.style.display = 'none';
+    }
   }
 
   positionPopup() {
-    // place this.popup rel to this.currentInput
-    // this.currentInput.style.anchorName = '--empathii-anchor';
-    // this.popover.style.left = 'anchor(--empathii-anchor right)';
-    // this.popover.style.top = 'anchor(--empathii-anchor top)';
+    const inputRect = this.currentInput.getBoundingClientRect();
+    const x = inputRect.left + inputRect.width;
+    const y = inputRect.top;
+    this.popup.style.display = 'grid';
+    this.popup.style.left = `${x}px`;
+    this.popup.style.top = `${y}px`;
   }
-
-  // *
 }
 
 //  ******
@@ -160,23 +152,22 @@ async function promptLLM(text, signal) {
   return session.prompt(promptTemplate(text));
 }
 
+// 1. is this a factual input of information into a html input or web form? (Y/N)
 const promptTemplate = (text) => `
 Analyze this text and rate the tone in terms of empathy, kindness, and politeness. 
 
 Answer these questions in the exact numbered format shown:
 
-1. is this a factual input of information into a html input or web form? (Y/N)
-2. is this a communication? e.g. message, comment, review or email (Y/N)
-3. give a score from 0 to 9 for tone, where 0 is rude, 9 is polite
-4. give a score from 0 to 9 for sentiment, where 0 is negative, 9 is positive
-5. give a score from 0-9 for empathy & kindness, where 9 is best
+1. is this a communication? e.g. message, comment, review or email (Y/N)
+2. give a score from 0 to 9 for tone, where 0 is rude, 9 is polite
+3. give a score from 0 to 9 for sentiment, where 0 is negative, 9 is positive
+4. give a score from 0-9 for empathy & kindness, where 9 is best
 
 Required format (answer with true / false or numbers only):
-1. N
-2. Y
-3. 6
-4. 7
-5. 5
+1. Y
+2. 6
+3. 7
+4. 5
 
 Only provide the 5 numbered lines exactly as shown in the example as your response will be processed automatically.
 
@@ -198,11 +189,11 @@ function parseResp(resp) {
   });
 
   return {
-    input: values['1'] == 'N',
-    message: values['2'] == 'Y',
-    tone: parseInt(values['3']),
-    sentiment: parseInt(values['4']),
-    empathy: parseInt(values['5']),
+    // input: values['1'] == 'N',
+    message: values['1'] == 'Y',
+    tone: parseInt(values['2']),
+    sentiment: parseInt(values['3']),
+    empathy: parseInt(values['4']),
   };
 }
 
